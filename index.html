@@ -1,0 +1,807 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Elements, Compounds, and Mixtures 3D</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body { margin: 0; overflow: hidden; background-color: #F5F5F5; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; }
+        #canvas-container { width: 100vw; height: 100vh; position: absolute; top: 0; left: 0; z-index: 1; }
+        
+        /* UI Overlay Styles */
+        .ui-layer { position: relative; z-index: 10; pointer-events: none; height: 100vh; display: flex; flex-direction: column; justify-content: space-between; }
+        .interactive { pointer-events: auto; }
+        
+        /* Custom Slider */
+        input[type=range] { -webkit-appearance: none; width: 100%; background: transparent; }
+        input[type=range]::-webkit-slider-thumb { -webkit-appearance: none; height: 24px; width: 24px; border-radius: 50%; background: #ffffff; border: 3px solid #3b82f6; cursor: pointer; margin-top: -10px; box-shadow: 0 2px 5px rgba(0,0,0,0.2); transition: transform 0.1s; }
+        input[type=range]::-webkit-slider-thumb:hover { transform: scale(1.1); }
+        input[type=range]::-webkit-slider-runnable-track { width: 100%; height: 6px; cursor: pointer; background: #e5e7eb; border-radius: 3px; }
+        input[type=range]:focus { outline: none; }
+
+        .btn { transition: all 0.2s; }
+        .btn:hover { background-color: #f3f4f6; transform: translateY(-1px); }
+        .btn:active { transform: translateY(1px); }
+    </style>
+    <!-- Import map for Three.js -->
+    <script type="importmap">
+        {
+            "imports": {
+                "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+                "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+            }
+        }
+    </script>
+</head>
+<body>
+
+    <div id="canvas-container"></div>
+
+    <!-- מסך פתיחה (Welcome Screen) -->
+    <div id="welcome-screen" class="absolute inset-0 z-50 flex items-center justify-center bg-gray-900/40 backdrop-blur-md transition-opacity duration-500 interactive">
+        <div class="bg-white p-8 md:p-10 rounded-3xl shadow-2xl max-w-2xl text-right border-t-8 border-blue-500">
+            <h1 class="text-3xl md:text-4xl font-extrabold text-gray-900 mb-6">הדמיית חומרים ברמה החלקיקית</h1>
+            <div class="text-lg text-gray-700 space-y-4 mb-8 leading-relaxed">
+                <p>תלמידים יקרים,</p>
+                <p>לפניכם שתי תצוגות של כלים, כאשר כל כלי מכיל חומר מסוים (יסוד, תרכובת או תערובת).</p>
+                <ul class="list-disc list-inside space-y-3 pr-4 font-medium text-gray-800">
+                    <li>התבוננו היטב בחלקיקים שבכלים, ולאחר מכן בחרו במשפט המתאר בצורה המדויקת ביותר את תכולתם.</li>
+                    <li>לאחר מענה נכון, לחצו על כפתור <strong>"ערבב"</strong>. תכולת שני הכלים תתאחד.</li>
+                    <li>עקבו אחר המתרחש בכלי המאוחד, ובחרו את המשפט המתאר בצורה המיטבית את התוצאה.</li>
+                </ul>
+                <p class="text-gray-600 text-base mt-4">שימו לב למקרא הצבעים כדי לזהות את היסודות השונים. בהצלחה!</p>
+            </div>
+            <div class="flex justify-center">
+                <button id="btn-start" class="bg-blue-600 hover:bg-blue-700 text-white text-xl font-bold py-3 px-12 rounded-full shadow-lg transition transform hover:scale-105">התחל בהדמיה</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="ui-layer">
+        <!-- Top Info Panel -->
+        <div class="p-6">
+            <!-- הורדתי את הקלאס hidden כדי שהמקרא תמיד יופיע -->
+            <div id="info-panel" class="interactive bg-white/90 backdrop-blur-sm p-4 rounded-2xl shadow-lg max-w-sm border border-gray-100 transition-opacity duration-300 opacity-0">
+                <h1 class="text-2xl font-extrabold text-gray-800 mb-2">הדמיית חומרים</h1>
+                
+                <div class="mt-2 flex flex-wrap items-center gap-3 text-xs font-medium text-gray-500 bg-gray-50 p-3 rounded-lg">
+                    <div class="flex items-center gap-1"><div class="w-3 h-3 rounded-full bg-[#FF3B30]"></div> יסוד אדום</div>
+                    <div class="flex items-center gap-1"><div class="w-3 h-3 rounded-full bg-[#007AFF]"></div> יסוד כחול</div>
+                    <div class="flex items-center gap-1"><div class="w-3 h-3 rounded-full bg-[#34C759]"></div> יסוד ירוק</div>
+                    <div class="flex items-center gap-1"><div class="w-3 h-3 rounded-full bg-[#FFCC00]"></div> יסוד צהוב</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Quiz Overlays -->
+        <div id="quiz-center" class="hidden absolute inset-0 flex items-center justify-center pointer-events-none z-20">
+            <div class="bg-white/95 backdrop-blur-md p-5 rounded-2xl shadow-2xl border border-gray-200 w-72 flex flex-col pointer-events-auto text-center transform scale-100 transition-transform">
+                <h3 class="text-lg font-bold text-gray-800 mb-5" id="qc-question"></h3>
+                <div class="flex flex-col gap-4" id="qc-options"></div>
+            </div>
+        </div>
+
+        <div id="quiz-side" class="hidden absolute top-1/4 right-8 z-20 pointer-events-none">
+            <div class="bg-white/95 backdrop-blur-md p-6 rounded-2xl shadow-2xl border border-gray-200 w-full max-w-sm pointer-events-auto text-right">
+                <h3 class="text-lg font-bold text-gray-800 mb-6" id="qs-question"></h3>
+                <div class="flex flex-col gap-3" id="qs-options"></div>
+            </div>
+        </div>
+
+        <!-- Feedback Modal -->
+        <div id="feedback-modal" class="hidden absolute inset-0 flex items-center justify-center bg-black/40 z-30 pointer-events-auto transition-opacity">
+            <div class="bg-white p-6 rounded-2xl shadow-2xl max-w-sm text-center">
+                <div class="text-red-500 mb-4">
+                    <svg class="w-12 h-12 mx-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                </div>
+                <h3 class="text-xl font-bold text-gray-900 mb-2">טעות</h3>
+                <p id="feedback-text" class="text-gray-600 mb-6"></p>
+                <div id="feedback-btn-container">
+                    <button id="btn-feedback-close" class="bg-gray-800 hover:bg-gray-900 text-white font-bold py-2 px-6 rounded-full">הבנתי, נסה שוב</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Bottom Controls -->
+        <div class="p-6 interactive w-full flex justify-center">
+            <!-- הסתרת הבר התחתון עד לתחילת המשחק -->
+            <div id="bottom-controls" class="bg-white/95 backdrop-blur-md p-6 rounded-2xl shadow-xl border border-gray-200 w-full max-w-4xl flex flex-col md:flex-row items-center gap-8 transition-opacity duration-300 opacity-0">
+                
+                <!-- Playback Controls -->
+                <div class="flex gap-3 items-center">
+                    <button id="btn-mix" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-6 rounded-full shadow-md transition transform hover:scale-105 ml-4">ערבב</button>
+
+                    <button id="btn-play" class="btn flex items-center justify-center w-12 h-12 rounded-full border-2 border-gray-200 text-gray-700 bg-white shadow-sm" title="הפעל/השהה">
+                        <svg id="icon-pause" class="w-5 h-5" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zM7 8a1 1 0 012 0v4a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v4a1 1 0 102 0V8a1 1 0 00-1-1z" clip-rule="evenodd"></path></svg>
+                        <svg id="icon-play" class="w-5 h-5 hidden" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM9.555 7.168A1 1 0 008 8v4a1 1 0 001.555.832l3-2a1 1 0 000-1.664l-3-2z" clip-rule="evenodd"></path></svg>
+                    </button>
+                    <button id="btn-reset" class="btn flex items-center justify-center w-12 h-12 rounded-full border-2 border-gray-200 text-gray-700 bg-white shadow-sm" title="אפס תרחיש">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path></svg>
+                    </button>
+                    <button id="btn-rotate" class="btn flex items-center justify-center w-12 h-12 rounded-full border-2 border-blue-500 text-blue-600 bg-blue-50 shadow-sm" title="סיבוב אוטומטי">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6"></path></svg>
+                    </button>
+                </div>
+
+                <!-- Slider -->
+                <div class="flex-grow w-full relative mr-4">
+                    <div class="flex justify-between text-base font-bold text-gray-500 mb-2 px-2">
+                        <span>1</span>
+                        <span>2</span>
+                        <span>3</span>
+                        <span>4</span>
+                        <span>5</span>
+                    </div>
+                    <input type="range" id="scenario-slider" min="1" max="5" value="1" step="1">
+                    <div class="flex justify-between text-gray-300 mt-2 px-2">
+                        <div class="w-1 h-2 bg-gray-300 rounded"></div>
+                        <div class="w-1 h-2 bg-gray-300 rounded"></div>
+                        <div class="w-1 h-2 bg-gray-300 rounded"></div>
+                        <div class="w-1 h-2 bg-gray-300 rounded"></div>
+                        <div class="w-1 h-2 bg-gray-300 rounded"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script type="module">
+        import * as THREE from 'three';
+        import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+
+        // --- Configuration & Materials ---
+        const COLORS = {
+            red: 0xFF3B30,
+            blue: 0x007AFF,
+            green: 0x34C759,
+            yellow: 0xFFCC00,
+            bond: 0x9CA3AF
+        };
+
+        const SCENARIOS = [
+            { title: "1. משני יסודות לתערובת" },
+            { title: "2. שני יסודות זהים" },
+            { title: "3. יסוד ותרכובת לתערובת" },
+            { title: "4. משתי תרכובות לתערובת" },
+            { title: "5. משני יסודות לתרכובת (תגובה כימית)" }
+        ];
+
+        const QUIZ_DATA = {
+            1: {
+                pre: {
+                    question: "לחצו על המשפט המתאר מה רואים בסימולציה לפניכם:",
+                    options: [
+                        { text: "שני יסודות נפרדים", correct: true },
+                        { text: "שתי תרכובות נפרדות", correct: false, feedback: "טעות! לפנינו שני חומרים, כל אחד מהם מורכב מסוג אחד של אטומים, לכן אלו יסודות ולא תרכובות." },
+                        { text: "יסוד ותרכובת נפרדים", correct: false, feedback: "טעות! שני החומרים עשויים מסוג אחד של אטומים בלבד (אדומים בנפרד וכחולים בנפרד), לכן שניהם יסודות." }
+                    ]
+                },
+                post: {
+                    question: "לחצו על המשפט המתאר מה רואים בסימולציה לפניכם:",
+                    options: [
+                        { text: "תערובת של שני יסודות", correct: true },
+                        { text: "שני יסודות נפרדים", correct: false, feedback: "טעות! החומרים כעת מעורבבים באותו חלל ואינם מופרדים יותר." },
+                        { text: "תרכובת", correct: false, feedback: "טעות! לא נוצרו קשרים כימיים חדשים בין האטומים האדומים לכחולים, לכן זו תערובת ולא תרכובת חדשה." }
+                    ]
+                }
+            },
+            2: {
+                pre: {
+                    question: "לחצו על המשפט המתאר מה רואים בסימולציה לפניכם:",
+                    options: [
+                        { text: "אותו יסוד בשתי קופסאות שונות", correct: true },
+                        { text: "שני יסודות נפרדים", correct: false, feedback: "טעות! שימו לב שהחלקיקים בשתי הקופסאות זהים לחלוטין (מולקולות כחולות)." },
+                        { text: "שתי תרכובות נפרדות", correct: false, feedback: "טעות! אלו אינן תרכובות, אלא מולקולות העשויות מסוג אחד של אטומים בלבד." }
+                    ]
+                },
+                post: {
+                    question: "לחצו על המשפט המתאר מה רואים בסימולציה לפניכם:",
+                    options: [
+                        { text: "חומר טהור אחד (יסוד)", correct: true },
+                        { text: "תערובת של שני יסודות", correct: false, feedback: "טעות! כיוון שהחלקיקים לחלוטין זהים, אין כאן תערובת אלא חומר טהור (יסוד)." },
+                        { text: "תרכובת", correct: false, feedback: "טעות! לא נוצר כאן חומר חדש המורכב מסוגים שונים של אטומים." }
+                    ]
+                }
+            },
+            3: {
+                pre: {
+                    question: "לחצו על המשפט המתאר מה רואים בסימולציה לפניכם:",
+                    options: [
+                        { text: "יסוד ותרכובת נפרדים", correct: true },
+                        { text: "שני יסודות נפרדים", correct: false, feedback: "טעות! בצד אחד אטומים בודדים (יסוד), אך בצד השני מולקולות המורכבות משני סוגי אטומים (תרכובת)." },
+                        { text: "שתי תרכובות נפרדות", correct: false, feedback: "טעות! אמנם בצד אחד יש תרכובת, אך בצד השני יש רק סוג אחד של אטומים (יסוד)." }
+                    ]
+                },
+                post: {
+                    question: "לחצו על המשפט המתאר מה רואים בסימולציה לפניכם:",
+                    options: [
+                        { text: "תערובת של יסוד ותרכובת", correct: true },
+                        { text: "תערובת של שני יסודות", correct: false, feedback: "טעות! אחד החומרים המעורבבים הוא תרכובת (מולקולה מסוגים שונים של אטומים)." },
+                        { text: "תרכובת חדשה", correct: false, feedback: "טעות! החומרים השונים רק מעורבבים פיזית באותו חלל ולא נוצרו קשרים כימיים חדשים ביניהם." }
+                    ]
+                }
+            },
+            4: {
+                pre: {
+                    question: "לחצו על המשפט המתאר מה רואים בסימולציה לפניכם:",
+                    options: [
+                        { text: "שתי תרכובות נפרדות", correct: true },
+                        { text: "שני יסודות נפרדים", correct: false, feedback: "טעות! כל חומר כאן מורכב משני סוגים שונים של אטומים המחוברים יחד, לכן אלו תרכובות." },
+                        { text: "תערובת של תרכובות", correct: false, feedback: "טעות! החומרים עדיין מופרדים בשתי קופסאות שונות ואינם מעורבבים." }
+                    ]
+                },
+                post: {
+                    question: "לחצו על המשפט המתאר מה רואים בסימולציה לפניכם:",
+                    options: [
+                        { text: "תערובת של שתי תרכובות", correct: true },
+                        { text: "חומר טהור (תרכובת)", correct: false, feedback: "טעות! יש כאן שני סוגים שונים של מולקולות המעורבבים יחד, לכן זוהי תערובת ולא חומר טהור." },
+                        { text: "תערובת של יסודות", correct: false, feedback: "טעות! המולקולות המעורבבות הן תרכובות (מורכבות מאטומים שונים), לא יסודות." }
+                    ]
+                }
+            },
+            5: {
+                pre: {
+                    question: "לחצו על המשפט המתאר מה רואים בסימולציה לפניכם:",
+                    options: [
+                        { text: "שני יסודות נפרדים", correct: true },
+                        { text: "שתי תרכובות נפרדות", correct: false, feedback: "טעות! בכל קופסה יש רק סוג אחד של אטומים, לכן אלו יסודות." },
+                        { text: "יסוד ותרכובת נפרדים", correct: false, feedback: "טעות! בשתי הקופסאות יש אטומים מסוג אחד בלבד, לכן שניהם יסודות." }
+                    ]
+                },
+                post: {
+                    question: "לחצו על המשפט המתאר מה רואים בסימולציה לפניכם:",
+                    options: [
+                        { text: "תרכובת חדשה", correct: true },
+                        { text: "תערובת של שני יסודות", correct: false, feedback: "טעות! שימו לב שנוצרו קשרים כימיים חדשים בין האטומים האדומים לכחולים. זו כבר לא תערובת!" },
+                        { text: "שני יסודות נפרדים", correct: false, feedback: "טעות! האטומים התנגשו, התרכבו ויצרו מולקולות חדשות לגמרי." }
+                    ]
+                }
+            }
+        };
+
+        // --- Three.js Setup ---
+        const container = document.getElementById('canvas-container');
+        const scene = new THREE.Scene();
+        scene.background = new THREE.Color(0xF5F5F5);
+        scene.fog = new THREE.Fog(0xF5F5F5, 30, 80);
+
+        const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 1000);
+        camera.position.set(0, 5, 65);
+
+        const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+        renderer.shadowMap.enabled = true;
+        renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+        container.appendChild(renderer.domElement);
+
+        const controls = new OrbitControls(camera, renderer.domElement);
+        controls.enableDamping = true;
+        controls.dampingFactor = 0.05;
+        controls.minDistance = 10;
+        controls.maxDistance = 100;
+
+        // Lighting
+        const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
+        scene.add(ambientLight);
+
+        const dirLight = new THREE.DirectionalLight(0xffffff, 0.8);
+        dirLight.position.set(10, 20, 10);
+        dirLight.castShadow = true;
+        dirLight.shadow.mapSize.width = 1024;
+        dirLight.shadow.mapSize.height = 1024;
+        scene.add(dirLight);
+
+        const hemiLight = new THREE.HemisphereLight(0xffffff, 0x444444, 0.4);
+        hemiLight.position.set(0, 20, 0);
+        scene.add(hemiLight);
+
+        // Group to hold all moving molecules
+        const worldGroup = new THREE.Group();
+        scene.add(worldGroup);
+
+        // --- Bounding Boxes (Containers) ---
+        const mixedBoxWidth = 46;  
+        const boxHeight = 22;      
+        const boxDepth = 22;       
+        const subBoxWidth = 14;    
+        const boxOffset = 16;      
+        const boxMat = new THREE.LineBasicMaterial({ color: 0xcccccc, transparent: true, opacity: 0.5 });
+
+        const mixedBoxGeo = new THREE.BoxGeometry(mixedBoxWidth, boxHeight, boxDepth);
+        const mixedBox = new THREE.LineSegments(new THREE.EdgesGeometry(mixedBoxGeo), boxMat);
+        mixedBox.visible = false;
+        worldGroup.add(mixedBox);
+
+        const rightBoxGeo = new THREE.BoxGeometry(subBoxWidth, boxHeight, boxDepth);
+        const rightBox = new THREE.LineSegments(new THREE.EdgesGeometry(rightBoxGeo), boxMat);
+        rightBox.position.x = boxOffset;
+        worldGroup.add(rightBox);
+
+        const leftBoxGeo = new THREE.BoxGeometry(subBoxWidth, boxHeight, boxDepth);
+        const leftBox = new THREE.LineSegments(new THREE.EdgesGeometry(leftBoxGeo), boxMat);
+        leftBox.position.x = -boxOffset;
+        worldGroup.add(leftBox);
+
+        // --- Molecule Factory ---
+        const atomGeo = new THREE.SphereGeometry(0.8, 32, 32);
+        const bondGeo = new THREE.CylinderGeometry(0.15, 0.15, 1.6, 16);
+        bondGeo.rotateZ(Math.PI / 2);
+
+        const materials = {
+            red: new THREE.MeshStandardMaterial({ color: COLORS.red, roughness: 0.2, metalness: 0.1 }),
+            blue: new THREE.MeshStandardMaterial({ color: COLORS.blue, roughness: 0.2, metalness: 0.1 }),
+            green: new THREE.MeshStandardMaterial({ color: COLORS.green, roughness: 0.2, metalness: 0.1 }),
+            yellow: new THREE.MeshStandardMaterial({ color: COLORS.yellow, roughness: 0.2, metalness: 0.1 }),
+            bond: new THREE.MeshStandardMaterial({ color: COLORS.bond, roughness: 0.5 })
+        };
+
+        class Molecule {
+            constructor(type, startPos, velocity, side) {
+                this.mesh = new THREE.Group();
+                this.type = type; 
+                this.velocity = velocity;
+                this.isReacting = false;
+                this.startSide = side; 
+                
+                this.buildGeometry();
+                
+                this.mesh.position.copy(startPos);
+                this.mesh.rotation.set(Math.random() * Math.PI, Math.random() * Math.PI, Math.random() * Math.PI);
+                this.spin = new THREE.Vector3((Math.random()-0.5)*0.05, (Math.random()-0.5)*0.05, (Math.random()-0.5)*0.05);
+                
+                worldGroup.add(this.mesh);
+            }
+
+            buildGeometry() {
+                const parts = this.type.split('-');
+                
+                if (parts.length === 1) {
+                    const atom = new THREE.Mesh(atomGeo, materials[parts[0]]);
+                    atom.castShadow = true;
+                    atom.receiveShadow = true;
+                    this.mesh.add(atom);
+                    this.radius = 0.8;
+                } else if (parts.length === 2) {
+                    const atom1 = new THREE.Mesh(atomGeo, materials[parts[0]]);
+                    atom1.position.x = -0.8;
+                    atom1.castShadow = true;
+                    atom1.receiveShadow = true;
+
+                    const atom2 = new THREE.Mesh(atomGeo, materials[parts[1]]);
+                    atom2.position.x = 0.8;
+                    atom2.castShadow = true;
+                    atom2.receiveShadow = true;
+
+                    const bond = new THREE.Mesh(bondGeo, materials.bond);
+                    bond.castShadow = true;
+                    
+                    this.mesh.add(atom1, atom2, bond);
+                    this.radius = 1.6; 
+                }
+            }
+
+            update() {
+                this.mesh.position.add(this.velocity);
+                this.mesh.rotation.x += this.spin.x;
+                this.mesh.rotation.y += this.spin.y;
+                this.mesh.rotation.z += this.spin.z;
+
+                const boundY = boxHeight / 2 - this.radius;
+                const boundZ = boxDepth / 2 - this.radius;
+                const pos = this.mesh.position;
+                
+                let minX, maxX;
+
+                if (isPreMix) {
+                    const subHalf = subBoxWidth / 2 - this.radius;
+                    if (this.startSide === 1) { 
+                        minX = boxOffset - subHalf;
+                        maxX = boxOffset + subHalf;
+                    } else { 
+                        minX = -boxOffset - subHalf;
+                        maxX = -boxOffset + subHalf;
+                    }
+                } else {
+                    minX = -mixedBoxWidth / 2 + this.radius;
+                    maxX = mixedBoxWidth / 2 - this.radius;
+                }
+                
+                if (pos.x > maxX) { pos.x = maxX; this.velocity.x *= -1; }
+                else if (pos.x < minX) { pos.x = minX; this.velocity.x *= -1; }
+                
+                if (pos.y > boundY) { pos.y = boundY; this.velocity.y *= -1; }
+                else if (pos.y < -boundY) { pos.y = -boundY; this.velocity.y *= -1; }
+                
+                if (pos.z > boundZ) { pos.z = boundZ; this.velocity.z *= -1; }
+                else if (pos.z < -boundZ) { pos.z = -boundZ; this.velocity.z *= -1; }
+            }
+            
+            destroy() {
+                worldGroup.remove(this.mesh);
+            }
+        }
+
+        let activeMolecules = [];
+
+        // --- Simulation State Management ---
+        let currentScenario = 1;
+        let isPlaying = true;
+        let autoRotate = true;
+        let isPreMix = true;
+        let isSimulationStarted = false; // משתנה למעקב אחר התחלת ההדמיה
+
+        function getRandomPos(side, offset) {
+            const x = side * offset + (Math.random() - 0.5) * (subBoxWidth - 4); 
+            const y = (Math.random() - 0.5) * (boxHeight - 4);
+            const z = (Math.random() - 0.5) * (boxDepth - 4);
+            return new THREE.Vector3(x, y, z);
+        }
+
+        function getDirToCenter(pos, startSide, speedMulti = 1) {
+            const targetX = startSide * boxOffset;
+            const target = new THREE.Vector3(
+                targetX + (Math.random()-0.5)*4,
+                (Math.random()-0.5)*4,
+                (Math.random()-0.5)*4
+            );
+            const dir = new THREE.Vector3().subVectors(target, pos).normalize();
+            const speed = (0.05 + Math.random() * 0.05) * speedMulti;
+            return dir.multiplyScalar(speed);
+        }
+
+        function clearSimulation() {
+            activeMolecules.forEach(mol => mol.destroy());
+            activeMolecules = [];
+        }
+
+        const infoPanel = document.getElementById('info-panel');
+        const bottomControls = document.getElementById('bottom-controls');
+        
+        // --- Quiz System ---
+        const quizCenter = document.getElementById('quiz-center');
+        const qcQuestion = document.getElementById('qc-question');
+        const qcOptions = document.getElementById('qc-options');
+        const quizSide = document.getElementById('quiz-side');
+        const qsQuestion = document.getElementById('qs-question');
+        const qsOptions = document.getElementById('qs-options');
+        const feedbackModal = document.getElementById('feedback-modal');
+        const feedbackText = document.getElementById('feedback-text');
+        const btnFeedbackClose = document.getElementById('btn-feedback-close');
+        const feedbackBtnContainer = document.getElementById('feedback-btn-container');
+        const btnMix = document.getElementById('btn-mix');
+
+        let q2Timeout = null;
+
+        function shuffleArray(array) {
+            let curId = array.length;
+            while (0 !== curId) {
+                let randId = Math.floor(Math.random() * curId);
+                curId -= 1;
+                let tmp = array[curId];
+                array[curId] = array[randId];
+                array[randId] = tmp;
+            }
+            return array;
+        }
+
+        function renderQuiz(container, questionEl, optionsEl, questionText, optionsArr, onCorrect, onWrong) {
+            container.classList.remove('hidden');
+            questionEl.innerText = questionText;
+            optionsEl.innerHTML = '';
+            
+            shuffleArray(optionsArr).forEach(opt => {
+                const btn = document.createElement('button');
+                btn.className = 'w-full text-right p-3 rounded-lg border border-gray-200 hover:bg-blue-50 hover:border-blue-300 transition-colors bg-white font-medium text-gray-700 shadow-sm';
+                btn.innerText = opt.text;
+                btn.onclick = () => {
+                    if (opt.correct) {
+                        container.classList.add('hidden');
+                        onCorrect();
+                    } else {
+                        onWrong(opt.feedback);
+                    }
+                };
+                optionsEl.appendChild(btn);
+            });
+        }
+
+        function showFeedback(text, autoCloseMs = 0, onCloseCallback = null) {
+            feedbackModal.classList.remove('hidden');
+            feedbackText.innerText = text;
+            
+            if (q2Timeout) clearTimeout(q2Timeout);
+
+            const closeAction = () => {
+                feedbackModal.classList.add('hidden');
+                if (onCloseCallback) onCloseCallback();
+            };
+
+            if (autoCloseMs > 0) {
+                feedbackBtnContainer.classList.add('hidden'); 
+                q2Timeout = setTimeout(closeAction, autoCloseMs);
+            } else {
+                feedbackBtnContainer.classList.remove('hidden'); 
+                btnFeedbackClose.onclick = closeAction;
+            }
+        }
+
+        function showPreMixQuiz(index) {
+            btnMix.classList.add('hidden'); 
+            const quizPre = QUIZ_DATA[index].pre;
+            renderQuiz(
+                quizCenter, qcQuestion, qcOptions,
+                quizPre.question,
+                quizPre.options,
+                () => {
+                    btnMix.classList.remove('hidden');
+                    btnMix.classList.add('animate-pulse', 'ring-4', 'ring-blue-400');
+                },
+                (feedback) => {
+                    showFeedback(feedback, 0, () => loadScenario(index));
+                }
+            );
+        }
+
+        function loadScenario(index) {
+            clearSimulation();
+            currentScenario = index;
+            
+            quizCenter.classList.add('hidden');
+            quizSide.classList.add('hidden');
+            feedbackModal.classList.add('hidden');
+            if (q2Timeout) clearTimeout(q2Timeout);
+            
+            isPreMix = true;
+            leftBox.visible = true;
+            rightBox.visible = true;
+            mixedBox.visible = false;
+
+            btnMix.classList.remove('animate-pulse', 'ring-4', 'ring-blue-400');
+            
+            // תציג את השאלה רק אם ההדמיה כבר החלה (כדי שלא יקפוץ מתחת למסך הפתיחה)
+            if (isSimulationStarted) {
+                showPreMixQuiz(index);
+            }
+
+            btnMix.innerText = index === 5 ? "הפעל תגובה" : "ערבב";
+
+            switch(index) {
+                case 1: 
+                    for(let i=0; i<10; i++) {
+                        let p = getRandomPos(1, boxOffset); 
+                        activeMolecules.push(new Molecule('red', p, getDirToCenter(p, 1), 1));
+                    }
+                    for(let i=0; i<8; i++) {
+                        let p = getRandomPos(-1, boxOffset); 
+                        activeMolecules.push(new Molecule('blue-blue', p, getDirToCenter(p, -1), -1));
+                    }
+                    break;
+                case 2: 
+                    for(let i=0; i<8; i++) {
+                        let p = getRandomPos(1, boxOffset);
+                        activeMolecules.push(new Molecule('blue-blue', p, getDirToCenter(p, 1), 1));
+                    }
+                    for(let i=0; i<8; i++) {
+                        let p = getRandomPos(-1, boxOffset);
+                        activeMolecules.push(new Molecule('blue-blue', p, getDirToCenter(p, -1), -1));
+                    }
+                    break;
+                case 3: 
+                    for(let i=0; i<8; i++) {
+                        let p = getRandomPos(1, boxOffset);
+                        activeMolecules.push(new Molecule('red-yellow', p, getDirToCenter(p, 1), 1));
+                    }
+                    for(let i=0; i<10; i++) {
+                        let p = getRandomPos(-1, boxOffset);
+                        activeMolecules.push(new Molecule('green', p, getDirToCenter(p, -1), -1));
+                    }
+                    break;
+                case 4: 
+                    for(let i=0; i<8; i++) {
+                        let p = getRandomPos(1, boxOffset);
+                        activeMolecules.push(new Molecule('blue-yellow', p, getDirToCenter(p, 1), 1));
+                    }
+                    for(let i=0; i<8; i++) {
+                        let p = getRandomPos(-1, boxOffset);
+                        activeMolecules.push(new Molecule('green-red', p, getDirToCenter(p, -1), -1));
+                    }
+                    break;
+                case 5: 
+                    for(let i=0; i<12; i++) {
+                        let p = getRandomPos(1, boxOffset);
+                        activeMolecules.push(new Molecule('blue', p, getDirToCenter(p, 1, 1.5), 1));
+                    }
+                    for(let i=0; i<12; i++) {
+                        let p = getRandomPos(-1, boxOffset);
+                        activeMolecules.push(new Molecule('red', p, getDirToCenter(p, -1, 1.5), -1));
+                    }
+                    break;
+            }
+        }
+
+        // --- Interaction Logic (Collision/Reaction) ---
+        function checkReactions() {
+            if (currentScenario !== 5 || isPreMix) return;
+
+            const reds = activeMolecules.filter(m => m.type === 'red' && !m.isReacting);
+            const blues = activeMolecules.filter(m => m.type === 'blue' && !m.isReacting);
+
+            for (let i = 0; i < reds.length; i++) {
+                for (let j = 0; j < blues.length; j++) {
+                    const r = reds[i];
+                    const b = blues[j];
+                    if (r.isReacting || b.isReacting) continue;
+
+                    const dist = r.mesh.position.distanceTo(b.mesh.position);
+                    
+                    if (dist < 2.5) {
+                        r.isReacting = true;
+                        b.isReacting = true;
+                        
+                        const midPoint = new THREE.Vector3().addVectors(r.mesh.position, b.mesh.position).multiplyScalar(0.5);
+                        const avgVel = new THREE.Vector3().addVectors(r.velocity, b.velocity).multiplyScalar(0.5);
+                        
+                        avgVel.y += 0.05;
+
+                        const newMol = new Molecule('red-blue', midPoint, avgVel);
+                        activeMolecules.push(newMol);
+                    }
+                }
+            }
+
+            for (let i = activeMolecules.length - 1; i >= 0; i--) {
+                if (activeMolecules[i].isReacting) {
+                    activeMolecules[i].destroy();
+                    activeMolecules.splice(i, 1);
+                }
+            }
+        }
+
+        function applyRepulsion() {
+            const forceStrength = 0.005;
+            for(let i=0; i<activeMolecules.length; i++) {
+                for(let j=i+1; j<activeMolecules.length; j++) {
+                    const m1 = activeMolecules[i];
+                    const m2 = activeMolecules[j];
+                    const dist = m1.mesh.position.distanceTo(m2.mesh.position);
+                    const minD = m1.radius + m2.radius;
+                    
+                    if (dist < minD * 1.5) { 
+                        const dir = new THREE.Vector3().subVectors(m1.mesh.position, m2.mesh.position).normalize();
+                        const force = dir.multiplyScalar(forceStrength * (1 - dist/(minD*1.5)));
+                        
+                        m1.velocity.add(force);
+                        m2.velocity.sub(force);
+                    }
+                }
+            }
+        }
+
+        // --- UI Event Listeners ---
+        const slider = document.getElementById('scenario-slider');
+        const btnPlay = document.getElementById('btn-play');
+        const btnReset = document.getElementById('btn-reset');
+        const btnRotate = document.getElementById('btn-rotate');
+        const iconPlay = document.getElementById('icon-play');
+        const iconPause = document.getElementById('icon-pause');
+        const welcomeScreen = document.getElementById('welcome-screen');
+        const btnStart = document.getElementById('btn-start');
+
+        // פעולת כפתור התחל ממסך הפתיחה
+        btnStart.addEventListener('click', () => {
+            welcomeScreen.classList.add('opacity-0');
+            setTimeout(() => {
+                welcomeScreen.classList.add('hidden');
+                // חשיפת ה-UI (מקרא ושליטה התחתונה)
+                infoPanel.classList.remove('opacity-0');
+                bottomControls.classList.remove('opacity-0');
+            }, 500);
+            isSimulationStarted = true;
+            // הפעלת השאלה הראשונה
+            showPreMixQuiz(currentScenario);
+        });
+
+        btnMix.addEventListener('click', () => {
+            isPreMix = false;
+            leftBox.visible = false;
+            rightBox.visible = false;
+            mixedBox.visible = true;
+
+            btnMix.classList.add('hidden');
+            btnMix.classList.remove('animate-pulse', 'ring-4', 'ring-blue-400'); 
+            
+            if(!isPlaying) togglePlay(); 
+
+            const delay = currentScenario === 5 ? 3000 : 1500;
+            
+            setTimeout(() => {
+                const quizPost = QUIZ_DATA[currentScenario].post;
+                renderQuiz(
+                    quizSide, qsQuestion, qsOptions,
+                    quizPost.question,
+                    quizPost.options,
+                    () => {
+                        if (currentScenario < 5) {
+                            slider.value = currentScenario + 1;
+                            loadScenario(currentScenario + 1);
+                        } else {
+                            quizCenter.classList.remove('hidden');
+                            qcQuestion.innerText = "כל הכבוד! סיימתם את ההדמיה בהצלחה.";
+                            qcOptions.innerHTML = '<button onclick="location.reload()" class="w-full text-center p-3 rounded-lg border border-blue-500 bg-blue-500 hover:bg-blue-600 transition-colors text-white font-bold shadow-sm">התחל מחדש</button>';
+                        }
+                    },
+                    (feedback) => {
+                        showFeedback(feedback, 3000, () => loadScenario(currentScenario));
+                    }
+                );
+            }, delay); 
+        });
+
+        slider.addEventListener('input', (e) => {
+            loadScenario(parseInt(e.target.value));
+            if(!isPlaying) togglePlay();
+        });
+
+        btnReset.addEventListener('click', () => {
+            loadScenario(currentScenario);
+        });
+
+        function togglePlay() {
+            isPlaying = !isPlaying;
+            if (isPlaying) {
+                iconPlay.classList.add('hidden');
+                iconPause.classList.remove('hidden');
+                btnPlay.classList.remove('bg-gray-100', 'text-blue-600');
+            } else {
+                iconPlay.classList.remove('hidden');
+                iconPause.classList.add('hidden');
+                btnPlay.classList.add('bg-gray-100', 'text-blue-600');
+            }
+        }
+        btnPlay.addEventListener('click', togglePlay);
+
+        btnRotate.addEventListener('click', () => {
+            autoRotate = !autoRotate;
+            if (autoRotate) {
+                btnRotate.classList.add('border-blue-500', 'text-blue-600', 'bg-blue-50');
+                btnRotate.classList.remove('border-gray-200', 'text-gray-700', 'bg-white');
+            } else {
+                btnRotate.classList.remove('border-blue-500', 'text-blue-600', 'bg-blue-50');
+                btnRotate.classList.add('border-gray-200', 'text-gray-700', 'bg-white');
+            }
+        });
+
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        });
+
+        // --- Main Animation Loop ---
+        function animate() {
+            requestAnimationFrame(animate);
+
+            controls.update();
+
+            if (autoRotate) {
+                worldGroup.rotation.y += 0.002;
+            }
+
+            if (isPlaying) {
+                applyRepulsion();
+                activeMolecules.forEach(mol => mol.update());
+                checkReactions();
+            }
+
+            renderer.render(scene, camera);
+        }
+
+        // Init
+        loadScenario(1);
+        animate();
+
+    </script>
+</body>
+</html>
